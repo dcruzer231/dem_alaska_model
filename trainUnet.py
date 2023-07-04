@@ -4,13 +4,22 @@
 # Train the model 
 
 """## Prepare paths of input images and target segmentation masks"""
+from time import time
+from unet import iou
+from loss_functions import dice_loss, surface_loss_keras
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import pathlib
+
+tf.random.set_seed(1337)
+AUTOTUNE = tf.data.AUTOTUNE
 
 import os
 #uncomment to force CPU
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-input_dir = "/home/dan/dem_site_project/datacrop_3band_minmaxscaler/"
-target_dir = "/home/dan/dem_site_project/labelcrop_filled/"
+input_dir = pathlib.Path("/home/dan/dem_site_project/datacrop_3band_minmaxscaler/")
+target_dir =  pathlib.Path("/home/dan/dem_site_project/labelcrop_filled/")
 
 BACKBONE = 'resnet34'
 label = "resnet34_dicesloss_512crop_filled"
@@ -34,11 +43,57 @@ target_img_paths = sorted(
     ]
 )
 
+# input_img_paths = tf.data.Dataset.list_files(str(input_dir+'*.png'), shuffle=False)
+# target_img_paths= tf.data.Dataset.list_files(str(target_dir+'*.png'), shuffle=False)
+
+dataset = tf.data.Dataset.from_tensor_slices((input_img_paths,target_img_paths))
+for input_path, target_path in dataset.take(4):
+    print(input_path, "|", target_path)
+
+length = tf.data.experimental.cardinality(dataset).numpy()
+
+val_size = int(length * 0.1)
+train_ds = dataset.skip(val_size)
+val_ds = dataset.take(val_size)
+
+print("train size",tf.data.experimental.cardinality(train_ds).numpy())
+print("validation size",tf.data.experimental.cardinality(val_ds).numpy())
+
+def decode_imgs(img,mask):
+  # Convert the compressed string to a 3D uint8 tensor
+  img = tf.io.read_file(img)
+  img = tf.io.decode_png(img,channels=3)
+  img = img/255
+  mask = tf.io.read_file(mask)
+  mask = tf.io.decode_png(mask,channels=3)
+
+  # Resize the image to the desired size
+  return tf.image.resize(img, img_size), tf.image.resize(mask, img_size)
+
+for input_path, target_path in train_ds.take(10):
+    print(input_path, "|", target_path)
+
+train_ds = train_ds.map(decode_imgs, num_parallel_calls=AUTOTUNE)
+val_ds = val_ds.map(decode_imgs, num_parallel_calls=AUTOTUNE)
+
+train_ds = train_ds.shuffle(length,seed=1337)
+val_ds = val_ds.shuffle(length,seed=1337)
+
+train_ds = train_ds.batch(batch_size)
+val_ds = val_ds.batch(batch_size)
+  
+# train_ds = train_ds.repeat() #repeat forever
+# val_ds = val_ds.repeat() #repeat forever
+
+
+for image, mask in train_ds.take(1):
+  print("Image shape: ", image.numpy().shape)
+  print("mask shape: ", mask.numpy().shape)
+
+
 #print a partial list of found images
 print("Number of samples:", len(input_img_paths), len(target_img_paths))
 
-for input_path, target_path in zip(input_img_paths[:10], target_img_paths[:10]):
-    print(input_path, "|", target_path)
 
 # from IPython.display import Image, display
 from tensorflow.keras.preprocessing.image import load_img
@@ -63,45 +118,24 @@ import matplotlib.pyplot as plt
 
 import random
 
-# Split our img paths into a training and a validation set
-val_samples = int(len(input_img_paths)*.1)
-print("number of validation samples", val_samples)
-random.Random(1337).shuffle(input_img_paths)
-random.Random(1337).shuffle(target_img_paths)
-train_input_img_paths = input_img_paths[:-val_samples]
-train_target_img_paths = target_img_paths[:-val_samples]
-val_input_img_paths = input_img_paths[-val_samples:]
-val_target_img_paths = target_img_paths[-val_samples:]
-
-# Instantiate data Sequences for each split
-train_gen = dataGenerator(
-    batch_size, img_size, train_input_img_paths, train_target_img_paths
-)
-val_gen = dataGenerator(batch_size, img_size, val_input_img_paths, val_target_img_paths)
-
-aug_ds = train_gen.map(
-  lambda x, y: (resize_and_rescale(x, training=True), y))
-
-
-w = train_gen.__getitem__(0)
-print(w[1][0].shape)
-print(np.max(w[1][0]))
+for image,mask in train_ds.take(1):
+  print(image.shape)
+  print(np.max(image))
 # plt.imshow(w[1][0])
 # plt.show()
 
 """## Train the model"""
 
-from time import time
-from unet import iou
-from loss_functions import dice_loss, surface_loss_keras
-import tensorflow as tf
+
 
 # from keras_loss import surface_loss_keras
 # Configure the model for training.
 # We use the "sparse" version of categorical_crossentropy
 # because our target data is integers.
 import segmentation_models as sm
+# from unet import get_model
 model = sm.Unet(BACKBONE, classes=num_classes, input_shape=img_size+(3,), encoder_weights=None)
+# model = get_model(img_size,3)
 # model.summary()
 print("exit callbacks")
 # model.compile(optimizer="adam", loss=sm.losses.DiceLoss(), metrics=[sm.metrics.IOUScore(), tf.keras.metrics.IoU(num_classes=3, target_class_ids=[0,1])])
@@ -136,18 +170,11 @@ def show_predictions(dataset=None, num=1,block=False):
   else:
     # display([sample_image, sample_mask,
              # create_mask(model.predict(sample_image[tf.newaxis, ...]))])
-      w = val_gen.__getitem__(0)
-      # fig = plt.figure(figsize=(10, 7))
-
-      # display([image[0], mask[0], create_mask(pred_mask)])
-      # showing image
-      mask = w[1]
-      image = w[0]
-
-      j =1
-      print("How many masks",image.shape)
-
-      for i in range(4):
+      i=0
+      for image, mask in val_ds.take(1):
+        for i in range(4):
+          image = image
+          mask = mask
           # fig.add_subplot(rows, columns, j) 
           j=0     
           axes_disp[i,j].imshow(image[i])  
@@ -162,9 +189,9 @@ def show_predictions(dataset=None, num=1,block=False):
 
           # fig.add_subplot(rows, columns, j) 
           j+=1     
-          prediction = model.predict(image[i][tf.newaxis, ...])
+          print("shape of fed image", image[i][tf.newaxis,...].shape)
+          prediction = model.predict(image[i][tf.newaxis,...])
           print("shape of prediction", prediction.shape)
-          print("shape of fed image", image[i][tf.newaxis, ...].shape)
 
           axes_disp[i,j].imshow(create_mask(prediction[0]))  
           axes_disp[i,j].axis('off') 
@@ -189,7 +216,7 @@ callbacks = [
 # Train the model, doing validation at the end of each epoch.
 epochs = 5000
 start = time()
-history = model.fit(aug_ds, epochs=epochs, validation_data=val_gen, callbacks=callbacks)
+history = model.fit(train_ds, epochs=epochs, validation_data=val_ds, callbacks=callbacks)
 print("training time is " + str(time()-start)+" seconds")
 
 import matplotlib.pyplot as plt
