@@ -91,6 +91,16 @@ val_ds = val_ds.cache()
 # train_ds = train_ds.repeat() #repeat forever
 # val_ds = val_ds.repeat() #repeat forever
 
+data_augmentation = tf.keras.Sequential([
+  tf.keras.layers.RandomRotation(0.2),
+  tf.keras.layers.RandomFlip()
+])
+
+aug_ds = train_ds.map(
+  lambda x, y: (data_augmentation(x, training=True), y))
+
+
+
 
 for image, mask in train_ds.take(1):
   print("Image shape: ", image.numpy().shape)
@@ -231,7 +241,7 @@ callbacks = [
 # Train the model, doing validation at the end of each epoch.
 epochs = 5000
 start = time()
-history = model.fit(train_ds, epochs=epochs, validation_data=val_ds, callbacks=callbacks)
+history = model.fit(aug_ds, epochs=epochs, validation_data=val_ds, callbacks=callbacks)
 print("training time is " + str(time()-start)+" seconds")
 
 import matplotlib.pyplot as plt
@@ -242,19 +252,19 @@ show_predictions(block=True)
 
 print(history.history.keys())
 
-loss, val_loss, accuracy, val_accuracy = [], [], [], []
+# loss, val_loss, accuracy, val_accuracy = [], [], [], []
 
 loss = loss + history.history['loss']
 val_loss = val_loss + history.history['val_loss']
-accuracy = accuracy + history.history['io_u']
-val_accuracy = val_accuracy + history.history['val_io_u']
+accuracy = accuracy + history.history['iou_score']
+val_accuracy = val_accuracy + history.history['val_iou_score']
 
 fig, ax = plt.subplots()
 ax.plot(accuracy,label = 'train')
 ax.plot(val_accuracy,label = 'test')
-ax.set_title('io_u')
+ax.set_title('iou_score')
 ax.legend(loc='lower right')
-fig.savefig('io_u'+label+'.png')
+fig.savefig('iou_score'+label+'.png')
 
 fig, ax = plt.subplots()
 ax.plot(loss,label = 'train')
