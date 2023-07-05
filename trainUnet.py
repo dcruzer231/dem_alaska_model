@@ -81,7 +81,13 @@ val_ds = val_ds.shuffle(length,seed=1337)
 
 train_ds = train_ds.batch(batch_size)
 val_ds = val_ds.batch(batch_size)
-  
+
+train_ds = train_ds.prefetch(buffer_size=AUTOTUNE)
+val_ds = val_ds.prefetch(buffer_size=AUTOTUNE)
+
+train_ds = train_ds.cache()
+val_ds = val_ds.cache()
+
 # train_ds = train_ds.repeat() #repeat forever
 # val_ds = val_ds.repeat() #repeat forever
 
@@ -139,7 +145,7 @@ model = sm.Unet(BACKBONE, classes=num_classes, input_shape=img_size+(3,), encode
 # model.summary()
 print("exit callbacks")
 # model.compile(optimizer="adam", loss=sm.losses.DiceLoss(), metrics=[sm.metrics.IOUScore(), tf.keras.metrics.IoU(num_classes=3, target_class_ids=[0,1])])
-model.compile(optimizer="adam", loss=sm.losses.DiceLoss(), metrics=[sm.metrics.IOUScore(), tf.keras.metrics.Accuracy()])
+model.compile(optimizer="adam", loss=sm.losses.DiceLoss(), metrics=[sm.metrics.IOUScore(smooth=1e-02), tf.keras.metrics.Accuracy()])
 
 
 def create_mask(pred_mask):
@@ -147,6 +153,15 @@ def create_mask(pred_mask):
   pred_mask = pred_mask[..., tf.newaxis]
   return pred_mask
 
+def create_maskrgb(pred_mask):
+  pred_mask = tf.math.argmax(pred_mask, axis=-1)
+  # pred_mask = pred_mask[..., tf.newaxis]
+  canvas = np.zeros(img_size+(3,))
+  canvas[:,:,0] = (pred_mask ==0 )
+  canvas[:,:,1] = (pred_mask ==1 )
+  canvas[:,:,2] = (pred_mask ==2 )
+
+  return canvas
 
 rows = 4
 columns = 3
@@ -183,7 +198,7 @@ def show_predictions(dataset=None, num=1,block=False):
 
           # fig.add_subplot(rows, columns, j)   
           j+=1   
-          axes_disp[i,j].imshow(create_mask(mask[i]))  
+          axes_disp[i,j].imshow(create_maskrgb(mask[i]))  
           axes_disp[i,j].axis('off') 
           axes_disp[i,j].set_title("mask")      
 
@@ -193,7 +208,7 @@ def show_predictions(dataset=None, num=1,block=False):
           prediction = model.predict(image[i][tf.newaxis,...])
           print("shape of prediction", prediction.shape)
 
-          axes_disp[i,j].imshow(create_mask(prediction[0]))  
+          axes_disp[i,j].imshow(create_maskrgb(prediction[0]))  
           axes_disp[i,j].axis('off') 
           axes_disp[i,j].set_title("prediction")  
       plt.show(block=block)
