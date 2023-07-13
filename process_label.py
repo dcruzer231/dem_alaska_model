@@ -20,38 +20,40 @@ dataname = "Brw_CALM_Subset_RGB_DEM_Slope_Aspect_3Band_Composite_190802.tif"
 labeldir= "/home/dan/dem_site_project/calmsite/Brw_CALM_Labels/"
 label = "Brw_CALM_Subset_labels_Polygon2Raster.tif"
 
-
+rgbdir = "/home/dan/dem_site_project/calmsite/Brw_CALM_RGB_Ortho/"
+rgbname ="Brw_CALM_Subset_RGB_Ortho_190802.tif"
 
 y = tifffile.imread(labeldir+label)
 x = tifffile.imread(datadir+dataname)
+rgb =tifffile.imread(rgbdir+rgbname)
 x[x<0] = 0
 # print((img/(img.max()+1)).max())
 # plt.imshow(img/(img.max()+1))
 plt.figure(1)
 print("image",x.shape, "label",y.shape)
-# print("x max  is", x.max())
-# print("x min  is", x.min())
-# print("x mean is",np.mean(x))
-# print("x std is",np.std(x))
+print("x max  is", x.max())
+print("x min  is", x.min())
+print("x mean is",np.mean(x))
+print("x std is",np.std(x))
 
 
 
-# print("x[0] max  is", x[:,:,0].max())
-# print("x[0] min  is", x[:,:,0].min())
-# print("x[0] mean is",np.mean(x[:,:,0]))
-# print("x[0] std is",np.std(x[:,:,0]))
+print("x[0] max  is", x[:,:,0].max())
+print("x[0] min  is", x[:,:,0].min())
+print("x[0] mean is",np.mean(x[:,:,0]))
+print("x[0] std is",np.std(x[:,:,0]))
 
-# print("x[1] max  is", x[:,:,1].max())
-# print("x[1] min  is", x[:,:,1].min())
-# print("x[1] mean is",np.mean(x[:,:,1]))
-# print("x[1] std is",np.std(x[:,:,1]))
-# print(x[:,:,1].flatten())
+print("x[1] max  is", x[:,:,1].max())
+print("x[1] min  is", x[:,:,1].min())
+print("x[1] mean is",np.mean(x[:,:,1]))
+print("x[1] std is",np.std(x[:,:,1]))
+print(x[:,:,1].flatten())
 
 
-# print("x[2] max  is", x[:,:,2].max())
-# print("x[2] min  is", x[:,:,2].min())
-# print("x[2] mean is",np.mean(x[:,:,2]))
-# print("x[2] std is",np.std(x[:,:,2]))
+print("x[2] max  is", x[:,:,2].max())
+print("x[2] min  is", x[:,:,2].min())
+print("x[2] mean is",np.mean(x[:,:,2]))
+print("x[2] std is",np.std(x[:,:,2]))
 
 
 # exit()
@@ -93,12 +95,15 @@ def shift_label(label, img,offsety, offsetx):
 
     return ydim
 
-def resize_label(label,img):
+def resize_label(label,img,mode=None):
     # ydim = np.expand_dims(label,axis=2)
     # plt.imshow(ydim)
     # plt.show()
     # exit()
-    label_image = Image.fromarray(label)
+    if mode:
+        label_image = Image.fromarray(label,mode=mode)
+    else:
+        label_image = Image.fromarray(label)
     label_image = label_image.resize((img.shape[1],img.shape[0]))
     y_array = np.array(label_image)
     # plt.imshow(y_array)
@@ -152,5 +157,15 @@ im = Image.fromarray(xnorm)
 # plt.figure(7)
 # plt.imshow(x[:,:,2])
 
+plt.figure(5)
+print("type of RGB",rgb.dtype)
+rgb = rgb.astype(np.uint8)
+rgb_resized = resize_label(rgb,xnorm)
+plt.imshow(rgb_resized)
 
-plt.show()	
+plt.figure(6)
+plt.imshow(rgb)
+
+
+
+plt.show()  
