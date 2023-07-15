@@ -143,7 +143,7 @@ plt.figure(4)
 
 y3band = make3Band(yn,True)
 plt.imshow(y3band)
-# np.save("calm_label",canvas)
+# np.save("calm_label",y3band)
 
 xnorm *= 255
 xnorm = xnorm.astype(np.uint8)
@@ -161,10 +161,18 @@ plt.figure(5)
 print("type of RGB",rgb.dtype)
 rgb = rgb.astype(np.uint8)
 rgb_resized = resize_label(rgb,xnorm)
+rgb_resized = rgb_resized.astype(np.float64)
+rgb_resized /= 255
 plt.imshow(rgb_resized)
 
 plt.figure(6)
 plt.imshow(rgb)
+
+print(xnorm.shape, rgb_resized.shape   )
+x6band = np.concatenate((xnorm,rgb_resized),axis=2)
+print(x6band.shape)
+
+
 
 
 
