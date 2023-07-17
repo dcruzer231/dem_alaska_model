@@ -171,7 +171,8 @@ plt.imshow(rgb)
 print(xnorm.shape, rgb_resized.shape   )
 x6band = np.concatenate((xnorm,rgb_resized),axis=2)
 print(x6band.shape)
-
+np.save("calm_6band",x6band)
+plt.imsave("calm_label.png",y3band.astype(np.uint8))
 
 
 
