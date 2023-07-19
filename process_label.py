@@ -124,7 +124,7 @@ plt.imshow(shifted_label)
 
 # plt.imshow(y3band)
 # plt.show()
-yn = resize_label(yr,xnorm)
+yn = resize_label(yr,rgb)
 
 yn= np.round(yn*3)
 
@@ -160,16 +160,16 @@ im = Image.fromarray(xnorm)
 plt.figure(5)
 print("type of RGB",rgb.dtype)
 rgb = rgb.astype(np.uint8)
-rgb_resized = resize_label(rgb,xnorm)
-rgb_resized = rgb_resized.astype(np.float64)
-rgb_resized /= 255
-plt.imshow(rgb_resized)
+xnorm_resized = resize_label(xnorm,rgb)
+xnorm_resized = xnorm_resized.astype(np.float64)
+xnorm_resized /= 255
+plt.imshow(xnorm_resized)
 
 plt.figure(6)
 plt.imshow(rgb)
 
-print(xnorm.shape, rgb_resized.shape   )
-x6band = np.concatenate((xnorm,rgb_resized),axis=2)
+print(rgb.shape, xnorm_resized.shape   )
+x6band = np.concatenate((rgb,xnorm_resized),axis=2)
 print(x6band.shape)
 np.save("calm_6band",x6band)
 plt.imsave("calm_label.png",y3band.astype(np.uint8))
