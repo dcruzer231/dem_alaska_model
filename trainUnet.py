@@ -10,6 +10,9 @@ from loss_functions import dice_loss, surface_loss_keras
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import pathlib
+import numpy as np
+from skimage.transform import resize
+
 
 tf.random.set_seed(1337)
 AUTOTUNE = tf.data.AUTOTUNE
@@ -18,21 +21,21 @@ import os
 #uncomment to force CPU
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-input_dir = pathlib.Path("/home/dan/dem_site_project/datacrop_3band_minmaxscaler/")
-target_dir =  pathlib.Path("/home/dan/dem_site_project/labelcrop_filled/")
+input_dir = pathlib.Path("/home/dan/dem_site_project/calm_datacrop_6band_minmaxscaler/")
+target_dir =  pathlib.Path("/home/dan/dem_site_project/calm_labelcrop/")
 
 BACKBONE = 'resnet34'
-label = "resnet34_dicesloss_512crop_filled"
+label = "resnet34_calm_6band_dicesloss_512crop"
 img_size = (512, 512)
 #the background class and the particle class
 num_classes = 3 
-batch_size = 10
+batch_size = 4
 
 input_img_paths = sorted(
     [
         os.path.join(input_dir, fname)
         for fname in os.listdir(input_dir)
-        if fname.endswith(".png")
+        if fname.endswith(".npy")
     ]
 )
 target_img_paths = sorted(
@@ -45,6 +48,10 @@ target_img_paths = sorted(
 
 # input_img_paths = tf.data.Dataset.list_files(str(input_dir+'*.png'), shuffle=False)
 # target_img_paths= tf.data.Dataset.list_files(str(target_dir+'*.png'), shuffle=False)
+
+input_img_paths = [np.load(img) for img in input_img_paths]
+target_img_paths = [plt.imread(img) for img in target_img_paths]
+
 
 dataset = tf.data.Dataset.from_tensor_slices((input_img_paths,target_img_paths))
 for input_path, target_path in dataset.take(4):
@@ -62,19 +69,23 @@ print("validation size",tf.data.experimental.cardinality(val_ds).numpy())
 def decode_imgs(img,mask):
   # Convert the compressed string to a 3D uint8 tensor
   img = tf.io.read_file(img)
-  img = tf.io.decode_png(img,channels=3)
+  img = tf.io.decode_raw(img, tf.float64)
+  # tf.numpy_function(np.load, img, tf.float64)
+  # img = tf.io.decode_png(img,channels=6)
+  # img = np.load(img.decode())
   img = img/255
   mask = tf.io.read_file(mask)
   mask = tf.io.decode_png(mask,channels=3)
+  img = tf.py_function(resize, (img,img_size+(6,)),tf.float64)
 
   # Resize the image to the desired size
-  return tf.image.resize(img, img_size), tf.image.resize(mask, img_size)
+  return img, tf.image.resize(mask, img_size)
 
 for input_path, target_path in train_ds.take(10):
     print(input_path, "|", target_path)
 
-train_ds = train_ds.map(decode_imgs, num_parallel_calls=AUTOTUNE)
-val_ds = val_ds.map(decode_imgs, num_parallel_calls=AUTOTUNE)
+# train_ds = train_ds.map(decode_imgs, num_parallel_calls=AUTOTUNE)
+# val_ds = val_ds.map(decode_imgs, num_parallel_calls=AUTOTUNE)
 
 train_ds = train_ds.shuffle(length,seed=1337)
 val_ds = val_ds.shuffle(length,seed=1337)
@@ -96,8 +107,7 @@ data_augmentation = tf.keras.Sequential([
   tf.keras.layers.RandomFlip()
 ])
 
-aug_ds = train_ds.map(
-  lambda x, y: (data_augmentation(x, training=True), y))
+aug_ds = train_ds#train_ds.map(lambda x, y: (data_augmentation(x, training=True), y))
 
 
 
@@ -150,7 +160,7 @@ for image,mask in train_ds.take(1):
 # because our target data is integers.
 import segmentation_models as sm
 # from unet import get_model
-model = sm.Unet(BACKBONE, classes=num_classes, input_shape=img_size+(3,), encoder_weights=None)
+model = sm.Unet(BACKBONE, classes=num_classes, input_shape=img_size+(6,), encoder_weights=None)
 # model = get_model(img_size,3)
 # model.summary()
 print("exit callbacks")
@@ -179,6 +189,7 @@ fig_disp,axes_disp = plt.subplots(rows,columns)
 def show_predictions(dataset=None, num=1,block=False):
   if dataset:
     for image, mask in dataset.take(num):
+      image = image[:,:,:,:3]
       pred_mask = model.predict(image)
       fig = plt.figure(figsize=(10, 7))
 
@@ -198,11 +209,12 @@ def show_predictions(dataset=None, num=1,block=False):
       i=0
       for image, mask in val_ds.take(1):
         for i in range(4):
-          image = image
+
+          image3ch = image[:,:,:,:3]
           mask = mask
           # fig.add_subplot(rows, columns, j) 
           j=0     
-          axes_disp[i,j].imshow(image[i])  
+          axes_disp[i,j].imshow(image3ch[i])  
           axes_disp[i,j].axis('off') 
           axes_disp[i,j].set_title("image")  
 
