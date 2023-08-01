@@ -25,7 +25,7 @@ input_dir = pathlib.Path("/home/dan/dem_site_project/calm_datacrop_6band_minmaxs
 target_dir =  pathlib.Path("/home/dan/dem_site_project/calm_labelcrop/")
 
 BACKBONE = 'resnet34'
-label = "resnet34_calm_6band_dicesloss_512crop"
+label = "resnet34_calm_6band_dicesloss_512crop_flipaugment"
 img_size = (512, 512)
 #the background class and the particle class
 num_classes = 3 
@@ -49,13 +49,19 @@ target_img_paths = sorted(
 # input_img_paths = tf.data.Dataset.list_files(str(input_dir+'*.png'), shuffle=False)
 # target_img_paths= tf.data.Dataset.list_files(str(target_dir+'*.png'), shuffle=False)
 
-input_img_paths = [np.load(img) for img in input_img_paths]
+def normalize_numpy(x):
+  x[:,:,:3] /= x[:,:,:3].max()
+  # for i in range(3,x.shape[-1]):
+    # x[:,:,i] = x[:,:,i]/x[:,:,i].max()
+  return x
+
+for input_path, target_path in zip(input_img_paths[:4],target_img_paths[:4]):
+    print(input_path, "|", target_path)
+input_img_paths = [normalize_numpy(np.load(img)) for img in input_img_paths]
 target_img_paths = [plt.imread(img) for img in target_img_paths]
 
 
 dataset = tf.data.Dataset.from_tensor_slices((input_img_paths,target_img_paths))
-for input_path, target_path in dataset.take(4):
-    print(input_path, "|", target_path)
 
 length = tf.data.experimental.cardinality(dataset).numpy()
 
@@ -81,8 +87,8 @@ def decode_imgs(img,mask):
   # Resize the image to the desired size
   return img, tf.image.resize(mask, img_size)
 
-for input_path, target_path in train_ds.take(10):
-    print(input_path, "|", target_path)
+# for input_path, target_path in train_ds.take(10):
+    # print(input_path, "|", target_path)
 
 # train_ds = train_ds.map(decode_imgs, num_parallel_calls=AUTOTUNE)
 # val_ds = val_ds.map(decode_imgs, num_parallel_calls=AUTOTUNE)
@@ -93,24 +99,94 @@ val_ds = val_ds.shuffle(length,seed=1337)
 train_ds = train_ds.batch(batch_size)
 val_ds = val_ds.batch(batch_size)
 
-train_ds = train_ds.prefetch(buffer_size=AUTOTUNE)
-val_ds = val_ds.prefetch(buffer_size=AUTOTUNE)
+# val_ds = val_ds.prefetch(buffer_size=AUTOTUNE)
 
-train_ds = train_ds.cache()
+# train_ds = train_ds.cache()
 val_ds = val_ds.cache()
 
 # train_ds = train_ds.repeat() #repeat forever
 # val_ds = val_ds.repeat() #repeat forever
 
-data_augmentation = tf.keras.Sequential([
-  tf.keras.layers.RandomRotation(0.2),
-  tf.keras.layers.RandomFlip()
-])
+def flipx_img(x,y, p=0.5):
+  if  tf.random.uniform([]) < p:
+    x = tf.reverse(x,[2])
+    y = tf.reverse(y,[2])
+  else:
+    x
+    y
+  return x, y
 
-aug_ds = train_ds#train_ds.map(lambda x, y: (data_augmentation(x, training=True), y))
+def flipx(factor=0.5):
+  return tf.keras.layers.Lambda(lambda x: flipx_img(x, factor))
+
+flipx = flipx()
+
+def flipy_img(x,y, p=0.5):
+  if  tf.random.uniform([]) < p:
+    x = tf.reverse(x,[1])
+    y = tf.reverse(y,[1])
+  else:
+    x
+    y
+  return x, y
+
+def flipy(factor=0.5):
+  return tf.keras.layers.Lambda(lambda x: flipy_img(x, factor))
+
+# image, label = next(iter(train_ds))
+# aug_image, aug_label = flipy_img(image,label)
+# image = image[0,:,:,:3]
+# label = label[0,:,:]
+# aug_image = aug_image[0,:,:,:3]
+# aug_label = aug_label[0,:,:]
+
+# fig, axis = plt.subplots(2, 2)
+# axis[0,0].imshow(image)
+# axis[0,1].imshow(aug_image)
+# axis[1,0].imshow(label)
+# axis[1,1].imshow(aug_label)
+
+# plt.show()
 
 
+flipy = flipy()
 
+# def augment(image_label, seed):
+  # image, label = image_label
+def augment(image, label):  
+
+  print('image', image) # these lines is in the augment function, result below
+  print('type', type(image))
+  print('label', label) # these lines is in the augment function, result below
+  print('type', type(label))  
+  # image, label = resize_and_rescale(image, label)
+  # image = tf.image.resize_with_crop_or_pad(image, IMG_SIZE + 6, IMG_SIZE + 6)
+  # Make a new seed.
+  # new_seed = tf.random.split(seed, num=1)[0, :]
+  # Random crop back to the original size.
+  # image = tf.image.stateless_random_crop(
+      # image, size=[IMG_SIZE, IMG_SIZE, 3], seed=seed)
+  # Random brightness.
+  # image = tf.image.stateless_random_brightness(
+      # image, max_delta=0.5, seed=new_seed)
+  # image = tf.clip_by_value(image, 0, 1)
+  image,label = flipx_img(image,label)
+  image,label = flipy_img(image,label)
+  return image, label
+
+# aug_ds = flipx(train_ds)#train_ds.map(lambda x, y: (data_augmentation(x, training=True), y))
+# aug_ds = flipy(aug_ds)#train_ds.map(lambda x, y: (data_augmentation(x, training=True), y))
+
+# Create a generator.
+rng = tf.random.Generator.from_seed(123, alg='philox')
+
+# Create a wrapper function for updating seeds.
+def f(x, y):
+  seed = rng.make_seeds(2)[0]
+  print("x in f is", x)
+  print("rank of x", tf.rank(x))
+  image, label = augment((x, y), seed)
+  return image, label
 
 for image, mask in train_ds.take(1):
   print("Image shape: ", image.numpy().shape)
@@ -119,6 +195,15 @@ for image, mask in train_ds.take(1):
 
 #print a partial list of found images
 print("Number of samples:", len(input_img_paths), len(target_img_paths))
+
+aug_ds = train_ds.map(augment, num_parallel_calls=AUTOTUNE)
+# aug_ds = aug_ds.prefetch(buffer_size=AUTOTUNE)
+
+
+
+
+
+
 
 
 # from IPython.display import Image, display
@@ -189,13 +274,13 @@ fig_disp,axes_disp = plt.subplots(rows,columns)
 def show_predictions(dataset=None, num=1,block=False):
   if dataset:
     for image, mask in dataset.take(num):
-      image = image[:,:,:,:3]
+      showimg = image[:,:,:,:3]
       pred_mask = model.predict(image)
       fig = plt.figure(figsize=(10, 7))
 
       # display([image[0], mask[0], create_mask(pred_mask)])
       # showing image
-      plt.imshow(image[0])  
+      plt.imshow(showimg[0])  
       plt.axis('off') 
       plt.title("image")  
 
@@ -211,6 +296,7 @@ def show_predictions(dataset=None, num=1,block=False):
         for i in range(4):
 
           image3ch = image[:,:,:,:3]
+          print("validation show image is of shape",image3ch.shape)
           mask = mask
           # fig.add_subplot(rows, columns, j) 
           j=0     
