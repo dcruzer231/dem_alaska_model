@@ -14,11 +14,14 @@ datadir = "/home/dan/dem_site_project/calmsite/Brw_CALM_DEM_Slope_Aspect_3Band_C
 dataname = "Brw_CALM_Subset_RGB_DEM_Slope_Aspect_3Band_Composite_190802.tif"
 
 
-# labeldir = "/media/dan/dataBackup/DEM_Site/Labels/Labels_Polygon2Raster/"
+# labeldir = "/media/dan/dataBackup1/DEM_Site/Labels/Labels_Polygon2Raster/"
 # labeldir = "./"
 # label = "Brw_DEM_2Class_Labels_4.tif"
 labeldir= "/home/dan/dem_site_project/calmsite/Brw_CALM_Labels/"
 label = "Brw_CALM_Subset_labels_Polygon2Raster.tif"
+
+# rgbdir = "/home/dan/dem_site_project/"
+# rgbname ="Brw_DEM_SiteRGB_Ortho_220808_NAD83_clipped_resampled_0.008m.tif"
 
 rgbdir = "/home/dan/dem_site_project/calmsite/Brw_CALM_RGB_Ortho/"
 rgbname ="Brw_CALM_Subset_RGB_Ortho_190802.tif"
@@ -26,6 +29,7 @@ rgbname ="Brw_CALM_Subset_RGB_Ortho_190802.tif"
 y = tifffile.imread(labeldir+label)
 x = tifffile.imread(datadir+dataname)
 rgb =tifffile.imread(rgbdir+rgbname)
+
 x[x<0] = 0
 # print((img/(img.max()+1)).max())
 # plt.imshow(img/(img.max()+1))
@@ -165,14 +169,20 @@ xnorm_resized = xnorm_resized.astype(np.float64)
 xnorm_resized /= 255
 plt.imshow(xnorm_resized)
 
+if rgb.max() > 255:
+    rgb[rgb == rgb.max()] = 0
+rgb = rgb / rgb.max()
+
 plt.figure(6)
 plt.imshow(rgb)
 
 print(rgb.shape, xnorm_resized.shape   )
 x6band = np.concatenate((rgb,xnorm_resized),axis=2)
 print(x6band.shape)
-np.save("calm_6band",x6band)
-plt.imsave("calm_label.png",y3band.astype(np.uint8))
+# np.save("calm_6band",x6band)
+np.save("data_6band",x6band)
+
+# plt.imsave("calm_label.png",y3band.astype(np.uint8))
 
 
 
