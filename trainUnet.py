@@ -14,7 +14,7 @@ import numpy as np
 from skimage.transform import resize
 
 
-tf.random.set_seed(1337)
+# tf.random.set_seed(1337)
 AUTOTUNE = tf.data.AUTOTUNE
 
 import os
