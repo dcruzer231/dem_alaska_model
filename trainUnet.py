@@ -25,7 +25,9 @@ input_dir = pathlib.Path("/home/dan/dem_site_project/calm_datacrop_6band_minmaxs
 target_dir =  pathlib.Path("/home/dan/dem_site_project/calm_labelcrop/")
 
 BACKBONE = 'resnet34'
-label = "resnet34_calm_6band_dicesloss_512crop_flipaugment"
+label = "resnet34_calm_6band_dicesloss_512crop_flipaugment_float32"
+# label = "resnet34_calm_6band_focalloss_512crop_flipaugment_float32"
+
 img_size = (512, 512)
 #the background class and the particle class
 num_classes = 3 
@@ -57,7 +59,7 @@ def normalize_numpy(x):
 
 for input_path, target_path in zip(input_img_paths[:4],target_img_paths[:4]):
     print(input_path, "|", target_path)
-input_img_paths = [normalize_numpy(np.load(img)) for img in input_img_paths]
+input_img_paths = [normalize_numpy(np.load(img)).astype(np.float32) for img in input_img_paths]
 target_img_paths = [plt.imread(img) for img in target_img_paths]
 
 
@@ -94,7 +96,6 @@ def decode_imgs(img,mask):
 # val_ds = val_ds.map(decode_imgs, num_parallel_calls=AUTOTUNE)
 
 train_ds = train_ds.shuffle(length,seed=1337)
-val_ds = val_ds.shuffle(length,seed=1337)
 
 train_ds = train_ds.batch(batch_size)
 val_ds = val_ds.batch(batch_size)
@@ -102,6 +103,7 @@ val_ds = val_ds.batch(batch_size)
 # val_ds = val_ds.prefetch(buffer_size=AUTOTUNE)
 
 # train_ds = train_ds.cache()
+val_ds = val_ds.shuffle(length,seed=1337)
 val_ds = val_ds.cache()
 
 # train_ds = train_ds.repeat() #repeat forever
@@ -197,6 +199,8 @@ for image, mask in train_ds.take(1):
 print("Number of samples:", len(input_img_paths), len(target_img_paths))
 
 aug_ds = train_ds.map(augment, num_parallel_calls=AUTOTUNE)
+val_ds = val_ds.map(augment, num_parallel_calls=AUTOTUNE)
+
 # aug_ds = aug_ds.prefetch(buffer_size=AUTOTUNE)
 
 
@@ -250,7 +254,8 @@ model = sm.Unet(BACKBONE, classes=num_classes, input_shape=img_size+(6,), encode
 # model.summary()
 print("exit callbacks")
 # model.compile(optimizer="adam", loss=sm.losses.DiceLoss(), metrics=[sm.metrics.IOUScore(), tf.keras.metrics.IoU(num_classes=3, target_class_ids=[0,1])])
-model.compile(optimizer="adam", loss=sm.losses.DiceLoss(), metrics=[sm.metrics.IOUScore(smooth=1e-02), tf.keras.metrics.Accuracy()])
+model.compile(optimizer="adam", loss=sm.losses.DiceLoss()), metrics=[sm.metrics.IOUScore(smooth=1e-02), tf.keras.metrics.Accuracy()])
+# model.compile(optimizer="adam", loss=sm.llosses.CategoricalFocalLoss(), metrics=[sm.metrics.IOUScore(smooth=1e-02), tf.keras.metrics.Accuracy()])
 
 
 def create_mask(pred_mask):
