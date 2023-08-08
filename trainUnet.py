@@ -17,6 +17,7 @@ from skimage.transform import resize
 # tf.random.set_seed(1337)
 AUTOTUNE = tf.data.AUTOTUNE
 
+
 import os
 #uncomment to force CPU
 # os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
@@ -25,10 +26,11 @@ input_dir = pathlib.Path("/home/dan/dem_site_project/calm_datacrop_6band_minmaxs
 target_dir =  pathlib.Path("/home/dan/dem_site_project/calm_labelcrop/")
 
 BACKBONE = 'resnet34'
-label = "resnet34_calm_6band_dicesloss_512crop_flipaugment_float32"
+label = "resnet34_calm_5band_dicesloss_512crop_flipaugment_float32"
 # label = "resnet34_calm_6band_focalloss_512crop_flipaugment_float32"
 
 img_size = (512, 512)
+chanNum = (5,)
 #the background class and the particle class
 num_classes = 3 
 batch_size = 4
@@ -59,7 +61,12 @@ def normalize_numpy(x):
 
 for input_path, target_path in zip(input_img_paths[:4],target_img_paths[:4]):
     print(input_path, "|", target_path)
-input_img_paths = [normalize_numpy(np.load(img)).astype(np.float32) for img in input_img_paths]
+
+skipChannel = 4
+# gets all channels but the one specified
+skpch = [i for i in np.arange(6) if i != skipChannel]
+
+input_img_paths = [normalize_numpy(np.load(img)).astype(np.float32)[...,skpch] for img in input_img_paths]
 target_img_paths = [plt.imread(img) for img in target_img_paths]
 
 
@@ -84,7 +91,7 @@ def decode_imgs(img,mask):
   img = img/255
   mask = tf.io.read_file(mask)
   mask = tf.io.decode_png(mask,channels=3)
-  img = tf.py_function(resize, (img,img_size+(6,)),tf.float64)
+  img = tf.py_function(resize, (img,img_size+chanNum),tf.float64)
 
   # Resize the image to the desired size
   return img, tf.image.resize(mask, img_size)
@@ -249,12 +256,12 @@ for image,mask in train_ds.take(1):
 # because our target data is integers.
 import segmentation_models as sm
 # from unet import get_model
-model = sm.Unet(BACKBONE, classes=num_classes, input_shape=img_size+(6,), encoder_weights=None)
+model = sm.Unet(BACKBONE, classes=num_classes, input_shape=img_size+chanNum, encoder_weights=None)
 # model = get_model(img_size,3)
 # model.summary()
 print("exit callbacks")
 # model.compile(optimizer="adam", loss=sm.losses.DiceLoss(), metrics=[sm.metrics.IOUScore(), tf.keras.metrics.IoU(num_classes=3, target_class_ids=[0,1])])
-model.compile(optimizer="adam", loss=sm.losses.DiceLoss()), metrics=[sm.metrics.IOUScore(smooth=1e-02), tf.keras.metrics.Accuracy()])
+model.compile(optimizer="adam", loss=sm.losses.DiceLoss(), metrics=[sm.metrics.IOUScore(smooth=1e-02), tf.keras.metrics.Accuracy()])
 # model.compile(optimizer="adam", loss=sm.llosses.CategoricalFocalLoss(), metrics=[sm.metrics.IOUScore(smooth=1e-02), tf.keras.metrics.Accuracy()])
 
 
