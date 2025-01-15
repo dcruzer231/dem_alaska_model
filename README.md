@@ -4,7 +4,7 @@ The goal of this project was to segment drone imagery of Alaskan landscape.  The
 ### RGB representation of the data
 ![alt text](https://github.com/dcruzer231/dem_alaska_model/blob/main/images/datasite_RGB.png)
 ### The DEM data visualized
-![alt text](https://github.com/dcruzer231/dem_alaska_model/blob/main/images/data_visualization.png)
+![alt text](https://github.com/dcruzer231/dem_alaska_model/blob/main/images/data_visualization.jpg)
 ### The label data
 ![alt text](https://github.com/dcruzer231/dem_alaska_model/blob/main/images/label2.png)
 ### output using dice-loss
